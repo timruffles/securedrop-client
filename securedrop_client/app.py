@@ -41,6 +41,7 @@ ENCODING = 'utf-8'
 def init(sdc_home: str) -> None:
     safe_mkdir(sdc_home)
     safe_mkdir(sdc_home, 'data')
+    safe_mkdir(sdc_home, 'gpg')
 
 
 def excepthook(*exc_args):

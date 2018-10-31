@@ -23,6 +23,7 @@ import shutil
 import arrow
 from securedrop_client import storage
 from securedrop_client import models
+from securedrop_client.crypto import VaultGPG
 from securedrop_client.utils import check_dir_permissions
 from PyQt5.QtCore import QObject, QThread, pyqtSignal, QTimer
 
@@ -106,6 +107,9 @@ class Client(QObject):
         self.home = home  # The "home" directory for client files.
         self.data_dir = os.path.join(self.home, 'data')  # File data.
         self.timer = None  # call timeout timer
+        self.proxy = False  # placeholder until Kushal PR is merged
+        self.gpg_dir = os.path.join(self.home, 'gpg')
+        self.gpg = VaultGPG(self.proxy, self.gpg_dir)
 
     def setup(self):
         """
@@ -443,20 +447,35 @@ class Client(QObject):
         """
         file_uuid = current_object.uuid
         server_filename = current_object.filename
-        if isinstance(result, tuple):
+        if isinstance(result, tuple):  # The file properly downloaded.
             sha256sum, filename = result
             # The filename contains the location where the file has been
             # stored. On non-Qubes OSes, this will be the data directory.
             # On Qubes OS, this will a ~/QubesIncoming directory. In case
             # we are on Qubes, we should move the file to the data directory
             # and name it the same as the server (e.g. spotless-tater-msg.gpg).
-            shutil.move(filename, os.path.join(self.data_dir, server_filename))
+            filepath_in_datadir = os.path.join(self.data_dir, server_filename)
+            shutil.move(filename, filepath_in_datadir)
+
+            # Attempt to decrypt the file in place.
+            decrypt_success = self.gpg.decrypt_file_in_place(
+                filepath_in_datadir)
+
+            if not decrypt_success:
+                self.set_status("Failed to download and decrypt file, "
+                                "please try again.")
+                # TODO: We should save the downloaded content, and just
+                # try to decrypt again if there was a failure.
+                return  # If we failed we should stop here.
+
+            # Now that download and decrypt have succeeded, mark the file
+            # as downloaded.
             storage.mark_file_as_downloaded(file_uuid, self.session)
 
             # Refresh the current source conversation, bearing in mind
             # that the user may have navigated to another source.
             self.gui.show_conversation_for(self.gui.current_source)
-        else:
+        else:  # The file did not download properly.
             # Update the UI in some way to indicate a failure state.
             self.set_status("Failed to download file, please try again.")
 
