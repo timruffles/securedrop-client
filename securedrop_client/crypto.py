@@ -30,20 +30,30 @@ class VaultGPG(object):
     VaultGPG uses the gpg binary on the current system: if Qubes,
     it will use split-gpg.
     """
-    def __init__(self, is_qubes, gpg_home_dir):
+    def __init__(self, is_qubes, gpg_home_dir=None):
         if is_qubes:
             gpg_binary = 'qubes-gpg-client'
+            self.gpg = gnupg.GPG(binary=gpg_binary)
         else:
             gpg_binary = 'gpg2'
-
-        self.gpg = gnupg.GPG(binary=gpg_binary,
-                             homedir=gpg_home_dir)
+            self.gpg = gnupg.GPG(binary=gpg_binary,
+                                 homedir=gpg_home_dir)
 
     def decrypt_file_in_place(self, filepath):
-        decrypted_path = os.path.join(filepath, '.decrypted')
-        result = self.gpg.decrypt_file(filepath,
-                                       output=decrypted_path)
+        decrypted_path = filepath + '.decrypted'
+
+        with open(filepath, 'rb') as f:
+            ciphertext = f.read()
+
+        result = self.gpg.decrypt(ciphertext)
+
+        # result = self.gpg.decrypt_file(f,
+        # output=decrypted_path)
+
         if result.ok:
+            with open(decrypted_path, 'wb') as f:
+                f.write(result.data)
+
             # Replace ciphertext with decrypted content
             shutil.move(decrypted_path, filepath)
             return True
