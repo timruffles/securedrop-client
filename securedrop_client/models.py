@@ -37,7 +37,6 @@ class WithContent():
 
 class Source(Base):
     __tablename__ = 'sources'
-    # TODO - add number_of_docs
     id = Column(Integer, primary_key=True)
     uuid = Column(String(36), unique=True, nullable=False)
     journalist_designation = Column(String(255), nullable=False)
